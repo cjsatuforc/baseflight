@@ -8,8 +8,8 @@
 
 // driver for spektrum satellite receiver / sbus using UART2 (freeing up more motor outputs for stuff)
 
-#define SPEK_2048_MAX_CHANNEL 8
-#define SPEK_1024_MAX_CHANNEL 7
+#define SPEK_MIN_CHANNELS 7
+#define SPEK_MAX_CHANNELS 14
 #define SPEK_FRAME_SIZE 16
 static uint8_t spek_chan_shift;
 static uint8_t spek_chan_mask;
@@ -35,14 +35,14 @@ void spektrumInit(rcReadRawDataPtr *callback)
             spek_chan_shift = 3;
             spek_chan_mask = 0x07;
             spekHiRes = true;
-            core.numRCChannels = SPEK_2048_MAX_CHANNEL;
+            core.numRCChannels = SPEK_MIN_CHANNELS;
             break;
         case SERIALRX_SPEKTRUM1024:
             // 10 bit frames
             spek_chan_shift = 2;
             spek_chan_mask = 0x03;
             spekHiRes = false;
-            core.numRCChannels = SPEK_1024_MAX_CHANNEL;
+            core.numRCChannels = SPEK_MIN_CHANNELS;
             break;
     }
 
@@ -83,14 +83,17 @@ bool spektrumFrameComplete(void)
 static uint16_t spektrumReadRawRC(uint8_t chan)
 {
     uint16_t data;
-    static uint32_t spekChannelData[SPEK_2048_MAX_CHANNEL];
+    static uint32_t spekChannelData[SPEK_MAX_CHANNELS];
     uint8_t b;
 
     if (rcFrameComplete) {
         for (b = 3; b < SPEK_FRAME_SIZE; b += 2) {
             uint8_t spekChannel = 0x0F & (spekFrame[b - 1] >> spek_chan_shift);
-            if (spekChannel < core.numRCChannels)
+            if (spekChannel < SPEK_MAX_CHANNELS) {
+                if (core.numRCChannels < (spekChannel + 1))
+                    core.numRCChannels = spekChannel + 1;
                 spekChannelData[spekChannel] = ((uint32_t)(spekFrame[b - 1] & spek_chan_mask) << 8) + spekFrame[b];
+            }
         }
         rcFrameComplete = false;
     }
